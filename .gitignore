@@ -32,6 +32,7 @@
 /out/
 /bin/
 /sandbox/
+/.DS_Store
 
 # intellij
 /src/intellij*/*.iml
