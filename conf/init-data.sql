@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS Person (
 	  REFERENCES Location(Id)
 );
 
+-- Set full replica identity
+ALTER TABLE Person REPLICA IDENTITY FULL;
+ALTER TABLE Location REPLICA IDENTITY FULL;
+
 -- Insert starting data
 INSERT INTO Location (Id, Name) VALUES (1, 'Sydney');
 INSERT INTO Location (Id, Name) VALUES (2, 'Adelaide');
