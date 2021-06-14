@@ -1,8 +1,11 @@
 package au.com.aeonsoftware
 
-import org.apache.spark.sql.SparkSession
+import org.apache.commons.io.FileUtils
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions.{col, explode, lit}
-import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
+
+import java.io.File
 
 object App {
   def main(args: Array[String]): Unit = {
@@ -14,7 +17,9 @@ object App {
     val DELTA_TABLE_ROOT_PATH = args(1)
     val KAFKA_BOOTSTRAP_SERVERS = args(2)
 
-    //val DELTA_TABLE_NAME = "./data/delta-store/music-table"
+    //Clean up the delta store directory
+    val file = new File(DELTA_TABLE_ROOT_PATH)
+    if (file.exists()) FileUtils.deleteDirectory(file)
 
     //initialize Spark
     val spark = SparkSession
@@ -35,7 +40,7 @@ object App {
       .readStream
       .format("kafka") // org.apache.spark:spark-sql-kafka-0-10_2.11:2.4.5
       .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
-      .option("subscribe", "io.aeon.pg.pg-delta.public.person")
+      .option("subscribe", "io.aeon.pg.pg-delta.public.person,io.aeon.pg.pg-delta.public.location")
       .option("startingOffsets", "earliest")
       .load()
     import org.apache.spark.sql._
@@ -50,7 +55,8 @@ object App {
       .select(col("data.payload.op"),
         col("data.payload.source.ts_ms"),
         col("data.payload.source.lsn"),
-        col("data.payload.before") as 'person)
+        col("data.payload.source.table"),
+        col("data.payload.before") as 'row)
       .withColumn("image",lit("before"))
       .where("data.payload.before IS NOT NULL")
 
@@ -58,13 +64,28 @@ object App {
       .select(col("data.payload.op"),
         col("data.payload.source.ts_ms"),
         col("data.payload.source.lsn"),
+        col("data.payload.source.table"),
         col("data.payload.after"))
       .withColumn("image",lit("after"))
       .where("data.payload.after IS NOT NULL")
 
     val personDF = beforeDF.unionAll(afterDF)
-      .select($"person.id",$"person.locationid",$"person.name",$"op",$"ts_ms",$"lsn",$"image")
+      .where("table = 'person'")
+      .select($"row.id",$"row.locationid",$"row.name",$"op",$"ts_ms",$"lsn",$"image")
 
+    val locationDF = beforeDF.unionAll(afterDF)
+      .where("table = 'location'")
+      .select($"row.id",$"row.name",$"op",$"ts_ms",$"lsn",$"image")
+
+    val streamingPersonQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-person", personDF)
+    val streamingLocationQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-location", locationDF)
+
+    streamingPersonQuery.awaitTermination()
+    streamingLocationQuery.awaitTermination()
+
+  }
+
+  private def writeAsDelta(deltaTableName: String, personDF: DataFrame) = {
     val query = personDF
       .writeStream
       .trigger(Trigger.ProcessingTime("5 seconds"))
@@ -73,12 +94,10 @@ object App {
         batchDF.write
           .format("delta")
           .mode("append")
-          .save(DELTA_TABLE_ROOT_PATH + "bronze-person")
+          .save(deltaTableName)
       }
       .outputMode("update")
       .start()
-
-    query.awaitTermination()
-
+    query
   }
 }
