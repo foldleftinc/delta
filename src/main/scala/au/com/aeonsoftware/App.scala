@@ -85,8 +85,8 @@ object App {
 
   }
 
-  private def writeAsDelta(deltaTableName: String, personDF: DataFrame) = {
-    val query = personDF
+  private def writeAsDelta(deltaTableName: String, df: DataFrame) = {
+    val query = df
       .writeStream
       .trigger(Trigger.ProcessingTime("5 seconds"))
       .foreachBatch { (batchDF: DataFrame, batchID: Long) =>
