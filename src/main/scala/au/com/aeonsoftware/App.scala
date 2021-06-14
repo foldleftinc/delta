@@ -10,12 +10,12 @@ import java.io.File
 object App {
   def main(args: Array[String]): Unit = {
 
-    if (args.length < 2) {
-      //      throw new IllegalArgumentException("Please input ")
+    if (args.length < 1) {
+      throw new IllegalArgumentException("Please input arguments")
     }
-    val SAMPLE_FILE_PATH = args(0)
-    val DELTA_TABLE_ROOT_PATH = args(1)
-    val KAFKA_BOOTSTRAP_SERVERS = args(2)
+
+    val DELTA_TABLE_ROOT_PATH = args(0)
+    val KAFKA_BOOTSTRAP_SERVERS = args(1)
 
     //Clean up the delta store directory
     val file = new File(DELTA_TABLE_ROOT_PATH)

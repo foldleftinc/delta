@@ -1,5 +1,7 @@
 -- Create database
-CREATE DATABASE DeltaSample;
+CREATE DATABASE deltasample;
+
+\c deltasample;
 
 -- Creation of table Location
 CREATE TABLE IF NOT EXISTS Location (

@@ -6,7 +6,7 @@
     "database.port": "5432",
     "database.user": "postgres",
     "database.password": "postgres",
-    "database.dbname" : "postgres",
+    "database.dbname" : "deltasample",
     "database.server.name": "io.aeon.pg.pg-delta",
     "decimal.handling.mode" : "double"
   }
