@@ -22,10 +22,11 @@ spark
 ```bash
 # Clone source code 
 git clone git@github.com:chinkitp/delta.git
+cd delta
 
 # Terminal 1, Start the server
 docker compose up
-
+  
 # Terminal 2, Upload KConnect configuration, compile code and spark-submi
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://localhost:8083/connectors/ -d @./conf/debezium-cdc-postgres-source.json
 sbt package
@@ -39,5 +40,12 @@ spark-submit --class au.com.aeonsoftware.App \
 spark-shell --packages io.delta:delta-core_2.12:1.0.0
 var personDF = spark.read.format("delta").load("**FULL PATH**/delta/data/delta-store/bronze-person/")
 personDF.show
+
+# Terminal 4, insert update delete 
+docker exec -it postgres bash -c 'psql -U postgres -d deltasample -f ./test-data.sql'
+
+# Terminal 3. 
+personDF.show
+
 ```
 ![Output](./docs/images/scala-repl.png)
