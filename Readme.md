@@ -2,7 +2,16 @@
 # Streaming Change Data Capture (CDC) with Debezium and Delta Lake
 
 ## Overview
-Sample data pipeline to capture [Debezium](https://debezium.io) CDC events and sink them into [Delta Lake](https://delta.io) tables.
+
+Consider hypothetical ABC Lawyers, clients from various cities lodge one or more cases. The management would like to create an operational dashboard. Some business rules are as follows:
+1. Case status is  New -> Accepted -> In Court -> Judgement Delivered -> Payment Received -> Closed
+2. A Client with 1 or more cases which is NOT closed is considered Active, otherwise InActive
+3. Client has 1 main australian city as location, but can update their location at any time.
+
+Create a sample data pipeline to produce the following sample dashboard
+![](./docs/images/dashboard.png)
+
+This example pipeline captures [Debezium](https://debezium.io) CDC events and sink them into [Delta Lake](https://delta.io) tables.
 Debezium streams _INSERT, UPDATE and DELETE_ on a database using Kafka Connect. Delta lake is a storage layer built on top of Apache Spark
 ## Architecture
     Postgres -> Debezium (KConnect) -> Kafka -> Spark Streaming -> Delta Table (Bronze) -> Spark Streaming -> Delta Silver
