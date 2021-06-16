@@ -35,6 +35,12 @@ cd delta
 
 # Terminal 1, Start the server
 docker compose up
+
+# Terminal 2, Run TPC-C Workload 
+docker exec -it load bash
+./hammerdbcli
+dbset db pg;
+buildschema
   
 # Terminal 2, Upload KConnect configuration, compile code and spark-submi
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://localhost:8083/connectors/ -d @./conf/debezium-cdc-postgres-source.json

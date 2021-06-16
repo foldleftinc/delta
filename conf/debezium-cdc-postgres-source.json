@@ -6,8 +6,8 @@
     "database.port": "5432",
     "database.user": "postgres",
     "database.password": "postgres",
-    "database.dbname" : "deltasample",
-    "database.server.name": "io.aeon.pg.pg-delta",
+    "database.dbname" : "tpcc",
+    "database.server.name": "io.aeon.pg.tpcc",
     "decimal.handling.mode" : "double"
   }
 }

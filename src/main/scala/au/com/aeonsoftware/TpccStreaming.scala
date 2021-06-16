@@ -7,7 +7,7 @@ import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
 
 import java.io.File
 
-object App {
+object TpccStreaming {
   def main(args: Array[String]): Unit = {
 
     if (args.length < 1) {
@@ -40,17 +40,15 @@ object App {
       .readStream
       .format("kafka") // org.apache.spark:spark-sql-kafka-0-10_2.11:2.4.5
       .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
-      .option("subscribe", "io.aeon.pg.pg-delta.public.person,io.aeon.pg.pg-delta.public.location")
+      .option("subscribe", "io.aeon.pg.tpcc.public.customer,io.aeon.pg.tpcc.public.orders,io.aeon.pg.tpcc.public.item,io.aeon.pg.tpcc.public.order_line,io.aeon.pg.tpcc.public.district,io.aeon.pg.tpcc.public.history,io.aeon.pg.tpcc.public.new_order")
       .option("startingOffsets", "earliest")
       .load()
     import org.apache.spark.sql._
-
 
     val extractedDF = inputDF
       .selectExpr("CAST(value AS STRING)")
       .select(functions.from_json($"value", inputSchema).as("data"))
 
-    //TODO: DRY fix
     val beforeDF = extractedDF
       .select(col("data.payload.op"),
         col("data.payload.source.ts_ms"),
@@ -69,26 +67,33 @@ object App {
       .withColumn("image",lit("after"))
       .where("data.payload.after IS NOT NULL")
 
-    val personDF = beforeDF.unionAll(afterDF)
-      .where("table = 'person'")
-      .select($"row.id",$"row.locationid",$"row.name",$"op",$"ts_ms",$"lsn",$"image")
+    val inputCustomerEncoder = implicitly[Encoder[Customer]]
+    val customerSchema = inputCustomerEncoder.schema
+    val inputOrdersEncoder = implicitly[Encoder[Orders]]
+    val ordersSchema = inputOrdersEncoder.schema
 
-    val locationDF = beforeDF.unionAll(afterDF)
-      .where("table = 'location'")
-      .select($"row.id",$"row.name",$"op",$"ts_ms",$"lsn",$"image")
+    val customerDf = beforeDF.unionAll(afterDF)
+      .select(functions.from_json($"row", customerSchema) as 'inner, $"op",$"ts_ms",$"lsn",$"image")
+      .select($"inner.*",$"op",$"ts_ms",$"lsn",$"image")
+      .where("table = 'customer'")
 
-    val streamingPersonQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-person", personDF)
-    val streamingLocationQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-location", locationDF)
+    val orderDF = beforeDF.unionAll(afterDF)
+      .select(functions.from_json($"row", ordersSchema) as 'inner, $"op",$"ts_ms",$"lsn",$"image")
+      .select($"inner.*",$"op",$"ts_ms",$"lsn",$"image")
+      .where("table = 'orders'")
+
+    val streamingPersonQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-customer", customerDf)
+    val streamingLocationQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-orders", orderDF)
 
     streamingPersonQuery.awaitTermination()
     streamingLocationQuery.awaitTermination()
 
   }
 
-  private def writeAsDelta(deltaTableName: String, df: DataFrame) = {
+  private def writeAsDelta[T](deltaTableName: String, df: DataFrame) = {
     val query = df
       .writeStream
-      .trigger(Trigger.ProcessingTime("5 seconds"))
+      .trigger(Trigger.ProcessingTime("120 seconds"))
       .foreachBatch { (batchDF: DataFrame, batchID: Long) =>
         println(s"Writing to Delta $batchID")
         batchDF.write

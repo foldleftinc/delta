@@ -6,11 +6,16 @@ services:
     container_name: postgres
     environment:
       - POSTGRES_PASSWORD=postgres
-    volumes:
-      - ./conf/init-data.sql:/docker-entrypoint-initdb.d/init-data.sql
-      - ./conf/test-data.sql:/test-data.sql
     ports:
       - "5432:5432"
+
+  load:
+    image: "webysther/hammerdb:3.3"
+    container_name: load
+    entrypoint: bash
+    tty: true
+    volumes:
+      - ./conf/postgres-tpcc-c.xml:/hammerdb/config/postgresql.xml
 
   connect:
     image: chinkit/debezium-connect-pg:v0.1
