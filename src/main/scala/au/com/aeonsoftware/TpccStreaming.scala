@@ -1,9 +1,10 @@
 package au.com.aeonsoftware
 
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Encoder, SparkSession}
 import org.apache.spark.sql.functions.{col, explode, lit}
 import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
+import org.apache.spark.sql.types.StructType
 
 import java.io.File
 
@@ -28,11 +29,12 @@ object TpccStreaming {
       .appName("Delta Sample")
       .getOrCreate()
 
+
     import org.apache.spark.sql._
     import spark.implicits._
 
-    val inputEncoder = implicitly[Encoder[DebeziumEvent]]
-    val inputSchema = inputEncoder.schema
+
+    val inputSchema = implicitly[Encoder[DebeziumEvent]].schema
 
     val inputDF = spark
 //      .read
@@ -40,14 +42,16 @@ object TpccStreaming {
       .readStream
       .format("kafka") // org.apache.spark:spark-sql-kafka-0-10_2.11:2.4.5
       .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
-      .option("subscribe", "io.aeon.pg.tpcc.public.customer,io.aeon.pg.tpcc.public.orders,io.aeon.pg.tpcc.public.item,io.aeon.pg.tpcc.public.order_line,io.aeon.pg.tpcc.public.district,io.aeon.pg.tpcc.public.history,io.aeon.pg.tpcc.public.new_order")
+      .option("subscribe", Configuration.topicNames)
       .option("startingOffsets", "earliest")
       .load()
     import org.apache.spark.sql._
 
     val extractedDF = inputDF
-      .selectExpr("CAST(value AS STRING)")
+      .selectExpr("CAST(value AS String)")
       .select(functions.from_json($"value", inputSchema).as("data"))
+
+    //extractedDF.printSchema()
 
     val beforeDF = extractedDF
       .select(col("data.payload.op"),
@@ -73,13 +77,13 @@ object TpccStreaming {
     val ordersSchema = inputOrdersEncoder.schema
 
     val customerDf = beforeDF.unionAll(afterDF)
-      .select(functions.from_json($"row", customerSchema) as 'inner, $"op",$"ts_ms",$"lsn",$"image")
-      .select($"inner.*",$"op",$"ts_ms",$"lsn",$"image")
+      .select(functions.from_json($"row", customerSchema) as '_, $"op",$"ts_ms",$"lsn",$"image")
+      .select($"_.*",$"op",$"ts_ms",$"lsn",$"image")
       .where("table = 'customer'")
 
     val orderDF = beforeDF.unionAll(afterDF)
-      .select(functions.from_json($"row", ordersSchema) as 'inner, $"op",$"ts_ms",$"lsn",$"image")
-      .select($"inner.*",$"op",$"ts_ms",$"lsn",$"image")
+      .select(functions.from_json($"row", ordersSchema) as '_, $"op",$"ts_ms",$"lsn",$"image")
+      .select($"_.*",$"op",$"ts_ms",$"lsn",$"image")
       .where("table = 'orders'")
 
     val streamingPersonQuery = writeAsDelta(DELTA_TABLE_ROOT_PATH + "bronze-customer", customerDf)
@@ -87,6 +91,15 @@ object TpccStreaming {
 
     streamingPersonQuery.awaitTermination()
     streamingLocationQuery.awaitTermination()
+//    Configuration.TABLE_NAMES.foreach(n => {
+//      println(s"Creating stream output for $n")
+//    val n = "customer"
+//      val query = beforeDF.unionAll(afterDF)
+//        .select($"_.c_id",$"op",$"ts_ms",$"lsn",$"image")
+//        .where(s"table = '$n'")
+//      val stream = writeAsDelta(DELTA_TABLE_ROOT_PATH + s"bronze-$n", query)
+//      stream.awaitTermination()
+//    })
 
   }
 
